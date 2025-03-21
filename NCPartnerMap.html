@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>NC Teachers Choropleth Map</title>
+  <title>NC Teachers Choropleth Map - Revised</title>
   <!-- Load D3 and TopoJSON -->
   <script src="https://d3js.org/d3.v6.min.js"></script>
   <script src="https://d3js.org/topojson.v1.min.js"></script>
@@ -40,26 +40,22 @@
     const svg = d3.select("svg");
     const tooltip = d3.select(".tooltip");
 
-    // Define a projection for the U.S. (adjust the scale/translate as needed for NC)
-    const projection = d3.geoAlbersUsa()
-      .translate([width / 2, height / 2])
-      .scale(5000); 
-
+    // Define a projection (we'll fit it to our NC counties later)
+    const projection = d3.geoAlbersUsa();
     const path = d3.geoPath().projection(projection);
 
-    // Define a color scale using D3's built-in scheme
-    const color = d3.scaleQuantize()
-      .range(d3.schemeBlues[9]);
+    // Define a color scale (using a neutral scheme)
+    const color = d3.scaleQuantize().range(d3.schemeBlues[9]);
 
     // Data URLs:
-    // us-atlas TopoJSON for all U.S. counties
+    // 1. us-atlas TopoJSON for all U.S. counties.
     const topoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json";
-    // TSV file mapping county FIPS codes to county names (from Mike Bostock's gist)
+    // 2. TSV mapping county FIPS codes to county names (from Mike Bostock’s gist).
     const countyNamesUrl = "https://gist.githubusercontent.com/mbostock/4090846/raw/us-county-names.tsv";
-    // CSV file with your partner data for NC (should have columns "county" and "teachers")
+    // 3. Your CSV file; if missing, we’ll proceed without teacher data.
     const csvUrl = "NCPartners.csv";
 
-    // Use Promise.allSettled so that a missing CSV doesn't block the rest of the data
+    // Use Promise.allSettled so that if CSV is missing, we can still render the map.
     Promise.allSettled([
       d3.json(topoUrl),
       d3.tsv(countyNamesUrl),
@@ -86,34 +82,37 @@
          partnerData = [];
       }
       
-      // Create a lookup from FIPS code to county name
+      // Create a lookup from FIPS code to county name.
       const countyNames = {};
       countyNamesData.forEach(d => {
-        countyNames[d.id] = d.name;  // TSV should have "id" and "name"
+        countyNames[d.id] = d.name;
       });
 
-      // Convert the TopoJSON to GeoJSON features for counties
+      // Convert TopoJSON to GeoJSON features for all counties.
       const counties = topojson.feature(us, us.objects.counties).features;
       
-      // Filter to only North Carolina counties (FIPS codes starting with "37")
+      // Filter for North Carolina counties (FIPS codes starting with "37").
       const ncCounties = counties.filter(d => d.id.toString().startsWith("37"));
       
-      // Add the county name (as property "NAME") to each NC county feature using the lookup
+      // Add county name to each NC county feature using our lookup.
       ncCounties.forEach(d => {
         d.properties.NAME = countyNames[d.id];
       });
-
-      // Create a lookup for teacher counts keyed by county name from your CSV data
+      
+      // Fit the projection to the extent of the NC counties.
+      projection.fitSize([width, height], { type: "FeatureCollection", features: ncCounties });
+      
+      // Create a lookup for teacher counts keyed by county name.
       const teacherByCounty = {};
       partnerData.forEach(d => {
         teacherByCounty[d.county] = +d.teachers;
       });
       
-      // If no teacher data is available, set a default domain so that all counties use the default fill
-      const teacherCounts = partnerData.length ? partnerData.map(d => +d.teachers) : [0];
+      // If no teacher data is available, set a default domain to avoid issues.
+      const teacherCounts = partnerData.length ? partnerData.map(d => +d.teachers) : [0, 1];
       color.domain([d3.min(teacherCounts), d3.max(teacherCounts)]);
 
-      // Draw each NC county as an SVG path
+      // Draw each NC county.
       svg.selectAll("path")
          .data(ncCounties)
          .enter().append("path")
