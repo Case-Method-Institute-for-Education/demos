@@ -55,8 +55,12 @@
     const path = d3.geoPath().projection(projection);
 
     // Define a custom purple color scale using a threshold scale.
-    const fillColor = ["#f2e6ff", "#d9b3ff", "#bf80ff", "#a64dff", "#8c1aff", "#7300e6", "#5c00b3"];
-    const thresholds = [1, 2, 3, 4, 5, 6]; 
+    // For a legend with bins "1", "2", "3", "4", "5", "6+", we use 6 colors.
+    const fillColor = ["#f2e6ff", "#bf80ff", "#a64dff", "#8c1aff", "#7300e6", "#5c00b3"];
+    // With thresholds [2, 3, 4, 5, 6]:
+    // - Values < 2 map to bin "1"
+    // - 2 <= value < 3 maps to bin "2", etc.
+    const thresholds = [2, 3, 4, 5, 6];
     const color = d3.scaleThreshold().domain(thresholds).range(fillColor);
 
     // Data URLs:
@@ -164,6 +168,48 @@
       
       // Add event listener to the drop-down to update the map when selection changes.
       d3.select("#dataField").on("change", updateMap);
+      
+      // ----- Add Legend -----
+      // Legend settings: legend takes up ~40% of the SVG width, 15px tall,
+      // and displays the bins "1", "2", "3", "4", "5", "6+".
+      const legendData = [
+        { label: "1", color: fillColor[0] },
+        { label: "2", color: fillColor[1] },
+        { label: "3", color: fillColor[2] },
+        { label: "4", color: fillColor[3] },
+        { label: "5", color: fillColor[4] },
+        { label: "6+", color: fillColor[5] }
+      ];
+      const legendWidth = width * 0.4; // 40% of SVG width
+      const legendHeight = 15;
+      const legendX = 10;  // left margin for legend
+      const legendY = 10;  // top margin for legend
+      const binWidth = legendWidth / legendData.length;
+      
+      const legend = svg.append("g")
+        .attr("class", "legend")
+        .attr("transform", `translate(${legendX}, ${legendY})`);
+      
+      // Append legend colored rectangles.
+      legend.selectAll("rect")
+        .data(legendData)
+        .enter()
+        .append("rect")
+        .attr("x", (d, i) => i * binWidth)
+        .attr("width", binWidth)
+        .attr("height", legendHeight)
+        .attr("fill", d => d.color);
+      
+      // Append legend labels below each rectangle.
+      legend.selectAll("text")
+        .data(legendData)
+        .enter()
+        .append("text")
+        .attr("x", (d, i) => i * binWidth + binWidth/2)
+        .attr("y", legendHeight + 12)  // 12px below the rect
+        .attr("text-anchor", "middle")
+        .attr("font-size", "12px")
+        .text(d => d.label);
     })
     .catch(error => {
       console.error("Unexpected error loading the data: ", error);
