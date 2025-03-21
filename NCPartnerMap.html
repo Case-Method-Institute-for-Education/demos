@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CMI Partners in North Carolina</title>
+  <title>NC Teachers Choropleth Map</title>
   <!-- Load D3 and TopoJSON -->
   <script src="https://d3js.org/d3.v6.min.js"></script>
   <script src="https://d3js.org/topojson.v1.min.js"></script>
@@ -29,7 +29,7 @@
   </style>
 </head>
 <body>
-  <h2>CMI Partners in North Carolina</h2>
+  <h2>North Carolina Teachers Program Participation</h2>
   <svg width="960" height="600"></svg>
   <div class="tooltip" style="opacity:0;"></div>
   
@@ -111,10 +111,6 @@
         teacherByCounty[d.county] = +d.teachers;
       });
       
-      // If no teacher data is available, set a default domain to avoid issues.
-      const teacherCounts = partnerData.length ? partnerData.map(d => +d.teachers) : [0, 1];
-      color.domain([d3.min(teacherCounts), d3.max(teacherCounts)]);
-
       // Draw each NC county.
       svg.selectAll("path")
          .data(ncCounties)
@@ -123,13 +119,14 @@
          .attr("d", path)
          .attr("fill", d => {
            const value = teacherByCounty[d.properties.NAME];
+           // If there's no data, return a neutral color.
            return value ? color(value) : "#ccc";
          })
          .on("mouseover", function(event, d) {
            const countyName = d.properties.NAME;
            const value = teacherByCounty[countyName];
            tooltip.transition().duration(200).style("opacity", 0.9);
-           tooltip.html(`<strong>${countyName} County</strong><br/>Trained Teachers: ${value ? value : "No data"}`)
+           tooltip.html(`<strong>${countyName}</strong><br/>Teachers: ${value ? value : "No data"}`)
              .style("left", (event.pageX + 5) + "px")
              .style("top", (event.pageY - 28) + "px");
          })
