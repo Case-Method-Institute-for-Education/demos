@@ -29,7 +29,7 @@
   </style>
 </head>
 <body>
-  <h2>CMI Partners in North Carolina</h2>
+  <h2>North Carolina Teachers Program Participation</h2>
   <svg width="960" height="600"></svg>
   <div class="tooltip" style="opacity:0;"></div>
   
@@ -59,11 +59,32 @@
     // CSV file with your partner data for NC (should have columns "county" and "teachers")
     const csvUrl = "NCPartners.csv";
 
-    Promise.all([
+    // Use Promise.allSettled so that a missing CSV doesn't block the rest of the data
+    Promise.allSettled([
       d3.json(topoUrl),
       d3.tsv(countyNamesUrl),
       d3.csv(csvUrl)
-    ]).then(([us, countyNamesData, partnerData]) => {
+    ]).then(results => {
+      let us, countyNamesData, partnerData;
+      
+      if (results[0].status === "fulfilled") {
+         us = results[0].value;
+      } else {
+         console.error("Error loading TopoJSON data:", results[0].reason);
+         return;
+      }
+      if (results[1].status === "fulfilled") {
+         countyNamesData = results[1].value;
+      } else {
+         console.error("Error loading county names TSV:", results[1].reason);
+         return;
+      }
+      if (results[2].status === "fulfilled") {
+         partnerData = results[2].value;
+      } else {
+         console.warn("CSV file not found. Proceeding with empty teacher data.");
+         partnerData = [];
+      }
       
       // Create a lookup from FIPS code to county name
       const countyNames = {};
@@ -88,8 +109,8 @@
         teacherByCounty[d.county] = +d.teachers;
       });
       
-      // Set the domain of the color scale based on the teacher counts
-      const teacherCounts = partnerData.map(d => +d.teachers);
+      // If no teacher data is available, set a default domain so that all counties use the default fill
+      const teacherCounts = partnerData.length ? partnerData.map(d => +d.teachers) : [0];
       color.domain([d3.min(teacherCounts), d3.max(teacherCounts)]);
 
       // Draw each NC county as an SVG path
@@ -115,7 +136,7 @@
          });
     })
     .catch(error => {
-      console.error("Error loading the data: ", error);
+      console.error("Unexpected error loading the data: ", error);
     });
   </script>
 </body>
