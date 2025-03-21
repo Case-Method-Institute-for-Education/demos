@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>NC Teachers Choropleth Map</title>
-  <!-- Load D3 (v6) from CDN -->
+  <!-- Load D3 and TopoJSON -->
   <script src="https://d3js.org/d3.v6.min.js"></script>
+  <script src="https://d3js.org/topojson.v1.min.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -39,47 +40,68 @@
     const svg = d3.select("svg");
     const tooltip = d3.select(".tooltip");
 
-    // Define a projection suitable for North Carolina
+    // Define a projection for the U.S. (adjust the scale/translate as needed for NC)
     const projection = d3.geoAlbersUsa()
       .translate([width / 2, height / 2])
-      .scale(5000);  // Adjust the scale as needed
+      .scale(5000); 
 
     const path = d3.geoPath().projection(projection);
 
-    // Define a color scale (using a quantize scale with a predefined color scheme)
+    // Define a color scale using D3's built-in scheme
     const color = d3.scaleQuantize()
       .range(d3.schemeBlues[9]);
 
-    // Load both the GeoJSON and CSV data
+    // Data URLs:
+    // us-atlas TopoJSON for all U.S. counties
+    const topoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json";
+    // TSV file mapping county FIPS codes to county names (from Mike Bostock's gist)
+    const countyNamesUrl = "https://gist.githubusercontent.com/mbostock/4090846/raw/us-county-names.tsv";
+    // CSV file with your partner data for NC (should have columns "county" and "teachers")
+    const csvUrl = "NCPartners.csv";
+
     Promise.all([
-      // GeoJSON for NC counties (using a public source)
-      d3.json("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/nc_counties.geojson"),
-      // CSV file with your data; ensure NCPartners.csv is in the same folder as this HTML file
-      d3.csv("NCPartners.csv")
-    ]).then(([geojson, data]) => {
+      d3.json(topoUrl),
+      d3.tsv(countyNamesUrl),
+      d3.csv(csvUrl)
+    ]).then(([us, countyNamesData, partnerData]) => {
       
-      // Create a lookup for teacher counts keyed by county name
+      // Create a lookup from FIPS code to county name
+      const countyNames = {};
+      countyNamesData.forEach(d => {
+        countyNames[d.id] = d.name;  // TSV should have "id" and "name"
+      });
+
+      // Convert the TopoJSON to GeoJSON features for counties
+      const counties = topojson.feature(us, us.objects.counties).features;
+      
+      // Filter to only North Carolina counties (FIPS codes starting with "37")
+      const ncCounties = counties.filter(d => d.id.toString().startsWith("37"));
+      
+      // Add the county name (as property "NAME") to each NC county feature using the lookup
+      ncCounties.forEach(d => {
+        d.properties.NAME = countyNames[d.id];
+      });
+
+      // Create a lookup for teacher counts keyed by county name from your CSV data
       const teacherByCounty = {};
-      data.forEach(d => {
+      partnerData.forEach(d => {
         teacherByCounty[d.county] = +d.teachers;
       });
       
-      // Calculate the domain for the color scale from the teacher counts
-      const teacherCounts = data.map(d => +d.teachers);
+      // Set the domain of the color scale based on the teacher counts
+      const teacherCounts = partnerData.map(d => +d.teachers);
       color.domain([d3.min(teacherCounts), d3.max(teacherCounts)]);
-      
-      // Bind GeoJSON features (each county) to path elements
+
+      // Draw each NC county as an SVG path
       svg.selectAll("path")
-         .data(geojson.features)
+         .data(ncCounties)
          .enter().append("path")
          .attr("class", "county")
          .attr("d", path)
-         .attr("fill", function(d) {
-           // Match using the county name; GeoJSON is expected to use the property "NAME"
+         .attr("fill", d => {
            const value = teacherByCounty[d.properties.NAME];
-           return value ? color(value) : "#ccc"; // if no data, use a neutral color
+           return value ? color(value) : "#ccc";
          })
-         // Tooltip interactivity
          .on("mouseover", function(event, d) {
            const countyName = d.properties.NAME;
            const value = teacherByCounty[countyName];
@@ -91,8 +113,6 @@
          .on("mouseout", function() {
            tooltip.transition().duration(500).style("opacity", 0);
          });
-         
-      // Optionally, you could add a legend here to explain the color scale
     })
     .catch(error => {
       console.error("Error loading the data: ", error);
