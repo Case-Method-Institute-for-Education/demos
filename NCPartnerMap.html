@@ -26,20 +26,10 @@
       pointer-events: none;
       font-size: 12px;
     }
-    #controls {
-      margin-bottom: 10px;
-    }
   </style>
 </head>
 <body>
   <h2>CMI Partners in North Carolina</h2>
-  <div id="controls">
-    <label for="dataField">Display: </label>
-    <select id="dataField">
-      <option value="teachers">Trained Teachers</option>
-      <option value="adopters">Adopters</option>
-    </select>
-  </div>
   <svg width="960" height="600"></svg>
   <div class="tooltip" style="opacity:0;"></div>
   
@@ -50,16 +40,14 @@
     const svg = d3.select("svg");
     const tooltip = d3.select(".tooltip");
 
-    // Define a projection
+    // Define a projection (we'll fit it to our NC counties later)
     const projection = d3.geoAlbersUsa();
     const path = d3.geoPath().projection(projection);
 
     // Define a custom purple color scale using a threshold scale.
-    // For a legend with bins "1", "2", "3", "4", "5", "6+", we use 6 colors.
+    // For our legend with bins "1", "2", "3", "4", "5", "6+", we use 6 colors.
     const fillColor = ["#f2e6ff", "#bf80ff", "#a64dff", "#8c1aff", "#7300e6", "#5c00b3"];
-    // With thresholds [2, 3, 4, 5, 6]:
-    // - Values < 2 map to bin "1"
-    // - 2 <= value < 3 maps to bin "2", etc.
+    // Define thresholds: values <2 map to bin "1", 2–3 maps to "2", etc.
     const thresholds = [2, 3, 4, 5, 6];
     const color = d3.scaleThreshold().domain(thresholds).range(fillColor);
 
@@ -68,7 +56,8 @@
     const topoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json";
     // 2. TSV mapping county FIPS codes to county names (from Mike Bostock’s gist).
     const countyNamesUrl = "https://gist.githubusercontent.com/mbostock/4090846/raw/us-county-names.tsv";
-    // 3. CSV file with your data; expected to have columns "county", "teachers", and "adopters".
+    // 3. CSV file with your data; expected columns: county, teachers, adopters.
+    //    Only the "teachers" field will be used.
     const csvUrl = "NCPartners.csv";
 
     // Global variable to store the lookup for county data.
@@ -121,26 +110,13 @@
       // Fit the projection to the extent of the NC counties.
       projection.fitSize([width, height], { type: "FeatureCollection", features: ncCounties });
       
-      // Build a lookup for our CSV data where each county maps to an object with both values.
+      // Build a lookup for our CSV data where each county maps to its teachers count.
       // Expected CSV columns: county, teachers, adopters.
       partnerData.forEach(d => {
         dataByCounty[d.county] = {
-          teachers: +d.teachers,
-          adopters: +d.adopters
+          teachers: +d.teachers
         };
       });
-
-      // Function to update the fill colors based on the current selection.
-      function updateMap() {
-        const currentField = d3.select("#dataField").property("value");
-        svg.selectAll("path")
-           .transition()
-           .duration(500)
-           .attr("fill", d => {
-             const value = dataByCounty[d.properties.NAME] ? dataByCounty[d.properties.NAME][currentField] : undefined;
-             return value ? color(value) : "#ccc";
-           });
-      }
 
       // Draw each NC county.
       svg.selectAll("path")
@@ -149,25 +125,19 @@
          .attr("class", "county")
          .attr("d", path)
          .attr("fill", d => {
-           // Use the default field ("teachers") initially.
            const value = dataByCounty[d.properties.NAME] ? dataByCounty[d.properties.NAME]["teachers"] : undefined;
            return value ? color(value) : "#ccc";
          })
          .on("mouseover", function(event, d) {
-           const currentField = d3.select("#dataField").property("value");
-           const label = currentField === "teachers" ? "Trained Teachers" : "Adopters";
-           const value = dataByCounty[d.properties.NAME] ? dataByCounty[d.properties.NAME][currentField] : undefined;
+           const value = dataByCounty[d.properties.NAME] ? dataByCounty[d.properties.NAME]["teachers"] : undefined;
            tooltip.transition().duration(200).style("opacity", 0.9);
-           tooltip.html(`<strong>${d.properties.NAME} County</strong><br/>${label}: ${value ? value : "No data"}`)
+           tooltip.html(`<strong>${d.properties.NAME} County</strong><br/>Trained Teachers: ${value ? value : "No data"}`)
              .style("left", (event.pageX + 5) + "px")
              .style("top", (event.pageY - 28) + "px");
          })
          .on("mouseout", function() {
            tooltip.transition().duration(500).style("opacity", 0);
          });
-      
-      // Add event listener to the drop-down to update the map when selection changes.
-      d3.select("#dataField").on("change", updateMap);
       
       // ----- Add Legend -----
       // Legend settings: legend takes up ~40% of the SVG width, 15px tall,
