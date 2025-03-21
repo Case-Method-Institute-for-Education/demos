@@ -26,10 +26,20 @@
       pointer-events: none;
       font-size: 12px;
     }
+    #controls {
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
   <h2>North Carolina Teachers Program Participation</h2>
+  <div id="controls">
+    <label for="dataField">Display: </label>
+    <select id="dataField">
+      <option value="teachers">Trained Teachers</option>
+      <option value="adopters">Adopters</option>
+    </select>
+  </div>
   <svg width="960" height="600"></svg>
   <div class="tooltip" style="opacity:0;"></div>
   
@@ -45,7 +55,6 @@
     const path = d3.geoPath().projection(projection);
 
     // Define a custom purple color scale using a threshold scale.
-    // This scale uses fixed thresholds and a corresponding array of purple shades.
     const fillColor = ["#f2e6ff", "#d9b3ff", "#bf80ff", "#a64dff", "#8c1aff", "#7300e6", "#5c00b3"];
     const thresholds = [1, 2, 3, 4, 5, 6]; 
     const color = d3.scaleThreshold().domain(thresholds).range(fillColor);
@@ -55,8 +64,11 @@
     const topoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json";
     // 2. TSV mapping county FIPS codes to county names (from Mike Bostock’s gist).
     const countyNamesUrl = "https://gist.githubusercontent.com/mbostock/4090846/raw/us-county-names.tsv";
-    // 3. Your CSV file; if missing, we’ll proceed without teacher data.
+    // 3. CSV file with your data; now expected to have columns "county", "teachers", and "adopters".
     const csvUrl = "NCPartners.csv";
+
+    // Global variable to store the lookup for county data.
+    let dataByCounty = {};
 
     // Use Promise.allSettled so that if CSV is missing, we can still render the map.
     Promise.allSettled([
@@ -105,12 +117,27 @@
       // Fit the projection to the extent of the NC counties.
       projection.fitSize([width, height], { type: "FeatureCollection", features: ncCounties });
       
-      // Create a lookup for teacher counts keyed by county name.
-      const teacherByCounty = {};
+      // Build a lookup for our CSV data where each county maps to an object with both values.
+      // Expected CSV columns: county, teachers, adopters.
       partnerData.forEach(d => {
-        teacherByCounty[d.county] = +d.teachers;
+        dataByCounty[d.county] = {
+          teachers: +d.teachers,
+          adopters: +d.adopters
+        };
       });
-      
+
+      // Function to update the fill colors based on the current selection.
+      function updateMap() {
+        const currentField = d3.select("#dataField").property("value");
+        svg.selectAll("path")
+           .transition()
+           .duration(500)
+           .attr("fill", d => {
+             const value = dataByCounty[d.properties.NAME] ? dataByCounty[d.properties.NAME][currentField] : undefined;
+             return value ? color(value) : "#ccc";
+           });
+      }
+
       // Draw each NC county.
       svg.selectAll("path")
          .data(ncCounties)
@@ -118,21 +145,25 @@
          .attr("class", "county")
          .attr("d", path)
          .attr("fill", d => {
-           const value = teacherByCounty[d.properties.NAME];
-           // If there's no data, return a neutral color.
+           // Use the default field ("teachers") initially.
+           const value = dataByCounty[d.properties.NAME] ? dataByCounty[d.properties.NAME]["teachers"] : undefined;
            return value ? color(value) : "#ccc";
          })
          .on("mouseover", function(event, d) {
-           const countyName = d.properties.NAME;
-           const value = teacherByCounty[countyName];
+           const currentField = d3.select("#dataField").property("value");
+           const label = currentField === "teachers" ? "Trained Teachers" : "Adopters";
+           const value = dataByCounty[d.properties.NAME] ? dataByCounty[d.properties.NAME][currentField] : undefined;
            tooltip.transition().duration(200).style("opacity", 0.9);
-           tooltip.html(`<strong>${countyName}</strong><br/>Teachers: ${value ? value : "No data"}`)
+           tooltip.html(`<strong>${d.properties.NAME}</strong><br/>${label}: ${value ? value : "No data"}`)
              .style("left", (event.pageX + 5) + "px")
              .style("top", (event.pageY - 28) + "px");
          })
          .on("mouseout", function() {
            tooltip.transition().duration(500).style("opacity", 0);
          });
+      
+      // Add event listener to the drop-down to update the map when selection changes.
+      d3.select("#dataField").on("change", updateMap);
     })
     .catch(error => {
       console.error("Unexpected error loading the data: ", error);
