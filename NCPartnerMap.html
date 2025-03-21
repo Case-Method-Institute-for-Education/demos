@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>NC Teachers Choropleth Map - Revised</title>
+  <title>CMI Partners in North Carolina</title>
   <!-- Load D3 and TopoJSON -->
   <script src="https://d3js.org/d3.v6.min.js"></script>
   <script src="https://d3js.org/topojson.v1.min.js"></script>
@@ -29,7 +29,7 @@
   </style>
 </head>
 <body>
-  <h2>North Carolina Teachers Program Participation</h2>
+  <h2>CMI Partners in North Carolina</h2>
   <svg width="960" height="600"></svg>
   <div class="tooltip" style="opacity:0;"></div>
   
@@ -126,7 +126,7 @@
            const countyName = d.properties.NAME;
            const value = teacherByCounty[countyName];
            tooltip.transition().duration(200).style("opacity", 0.9);
-           tooltip.html(`<strong>${countyName}</strong><br/>Teachers: ${value ? value : "No data"}`)
+           tooltip.html(`<strong>${countyName} County</strong><br/>Trained Teachers: ${value ? value : "No data"}`)
              .style("left", (event.pageX + 5) + "px")
              .style("top", (event.pageY - 28) + "px");
          })
