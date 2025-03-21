@@ -44,8 +44,11 @@
     const projection = d3.geoAlbersUsa();
     const path = d3.geoPath().projection(projection);
 
-    // Define a color scale (using a neutral scheme)
-    const color = d3.scaleQuantize().range(d3.schemeBlues[9]);
+    // Define a custom purple color scale using a threshold scale.
+    // This scale uses fixed thresholds and a corresponding array of purple shades.
+    const fillColor = ["#f2e6ff", "#d9b3ff", "#bf80ff", "#a64dff", "#8c1aff", "#7300e6", "#5c00b3"];
+    const thresholds = [1, 2, 3, 4, 5, 6]; 
+    const color = d3.scaleThreshold().domain(thresholds).range(fillColor);
 
     // Data URLs:
     // 1. us-atlas TopoJSON for all U.S. counties.
